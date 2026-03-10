@@ -4,7 +4,7 @@
       "type": "http",
       "url": "https://cowork-mail.fly.dev/mcp",
       "headers": {
-        "Authorization": "Bearer 9acd9bba41505e51cd801bd62bc0df7d7c45e9fc7f82bad174ed3879a251dfa9"
+        "Authorization": "Bearer ${COWORK_MAIL_TOKEN}"
       }
     }
   }
