@@ -2,6 +2,7 @@ app = "cowork-mail"
 primary_region = "sjc"
 
 [build]
+  dockerfile = "Dockerfile"
 
 [env]
   COWORK_MAIL_DB = "/data/cowork-mail.db"

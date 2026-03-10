@@ -11,6 +11,7 @@ import {
   getUnreadCount,
 } from "./db.js";
 import http from "http";
+import crypto from "crypto";
 
 const PORT = parseInt(process.env.COWORK_MAIL_PORT || "3141", 10);
 const AUTH_TOKEN = process.env.COWORK_MAIL_TOKEN || "";
@@ -102,6 +103,34 @@ function createServer(): McpServer {
   );
 
   return server;
+}
+
+// --- Session management for stateful MCP ---
+
+const sessions = new Map<string, { transport: StreamableHTTPServerTransport; server: McpServer }>();
+
+async function getOrCreateSession(sessionId: string | null): Promise<{ transport: StreamableHTTPServerTransport; server: McpServer; isNew: boolean }> {
+  if (sessionId && sessions.has(sessionId)) {
+    return { ...sessions.get(sessionId)!, isNew: false };
+  }
+
+  const server = createServer();
+  const transport = new StreamableHTTPServerTransport({
+    sessionIdGenerator: () => crypto.randomUUID(),
+  });
+
+  await server.connect(transport);
+
+  transport.onclose = () => {
+    const sid = transport.sessionId;
+    if (sid) sessions.delete(sid);
+  };
+
+  if (transport.sessionId) {
+    sessions.set(transport.sessionId, { transport, server });
+  }
+
+  return { transport, server, isNew: true };
 }
 
 // --- REST API ---
@@ -220,13 +249,26 @@ const httpServer = http.createServer(async (req, res) => {
   if (await handleRest(req, res)) return;
 
   if (url.pathname === "/mcp") {
+    const sessionId = req.headers["mcp-session-id"] as string | undefined ?? null;
+
     try {
-      const mcpServer = createServer();
-      const transport = new StreamableHTTPServerTransport({ sessionIdGenerator: undefined });
-      await mcpServer.connect(transport);
+      if (req.method === "DELETE") {
+        if (sessionId && sessions.has(sessionId)) {
+          const session = sessions.get(sessionId)!;
+          await session.transport.close();
+          await session.server.close();
+          sessions.delete(sessionId);
+          res.writeHead(200);
+          res.end();
+        } else {
+          res.writeHead(404);
+          res.end();
+        }
+        return;
+      }
+
+      const { transport } = await getOrCreateSession(sessionId);
       await transport.handleRequest(req, res);
-      await transport.close();
-      await mcpServer.close();
     } catch (err: unknown) {
       if (!res.headersSent) {
         json(res, 500, { error: err instanceof Error ? err.message : String(err) });
