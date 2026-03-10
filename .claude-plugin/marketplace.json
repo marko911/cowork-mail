@@ -1,0 +1,14 @@
+{
+  "name": "cowork-mail",
+  "owner": {
+    "name": "Marko Bilal"
+  },
+  "plugins": [
+    {
+      "name": "cowork-mail",
+      "source": ".",
+      "description": "Cross-machine persona-aware mailbox for Claude Code cowork sessions. Agents send JSON messages to each other via a shared MCP server.",
+      "version": "0.2.0"
+    }
+  ]
+}
