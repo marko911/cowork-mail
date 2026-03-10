@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "cowork-mail": {
+      "type": "http",
+      "url": "${COWORK_MAIL_SERVER_URL:-https://cowork-mail.fly.dev}/mcp",
+      "headers": {
+        "Authorization": "Bearer ${COWORK_MAIL_TOKEN}"
+      }
+    }
+  }
+}

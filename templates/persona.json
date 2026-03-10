@@ -1,0 +1,13 @@
+{
+  "persona_id": "north",
+  "display_name": "North",
+  "mail_server_url": "https://cowork-mail.fly.dev",
+  "mail_api_token_env": "COWORK_MAIL_TOKEN",
+  "team": ["south", "east", "west"],
+  "role": "implementation",
+  "poll_interval_seconds": 30,
+  "instructions": [
+    "Coordinate via cowork mail for reviews, handoffs, and dependency requests.",
+    "When notified of unread mail, fetch inbox before making conflicting changes."
+  ]
+}
