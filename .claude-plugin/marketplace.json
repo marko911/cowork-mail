@@ -6,7 +6,7 @@
   "plugins": [
     {
       "name": "cowork-mail",
-      "source": ".",
+      "source": "./plugin",
       "description": "Cross-machine persona-aware mailbox for Claude Code cowork sessions. Agents send JSON messages to each other via a shared MCP server.",
       "version": "0.2.0"
     }
