@@ -60,8 +60,10 @@ def load_persona(cwd: Path | None = None) -> dict[str, Any]:
 
 
 def ensure_persona_fields(data: dict[str, Any]) -> None:
-    required = ["persona_id", "mail_server_url", "mail_api_token_env"]
+    required = ["persona_id", "mail_server_url"]
     missing = [k for k in required if not data.get(k)]
+    if not data.get("mail_api_token") and not data.get("mail_api_token_env"):
+        missing.append("mail_api_token (or mail_api_token_env)")
     if missing:
         raise ValueError(f"missing required persona fields: {', '.join(missing)}")
 
@@ -147,12 +149,21 @@ def register_persona_api(
         pass
 
 
-def env_token(persona: dict[str, Any]) -> str:
-    env_name = str(persona["mail_api_token_env"])
-    token = os.environ.get(env_name, "")
-    if not token:
-        raise RuntimeError(f"missing token env var: {env_name}")
-    return token
+def resolve_token(persona: dict[str, Any]) -> str:
+    # Direct token in persona.json takes priority
+    direct = persona.get("mail_api_token", "")
+    if direct:
+        return str(direct)
+    # Fall back to env var for power users
+    env_name = persona.get("mail_api_token_env", "")
+    if env_name:
+        token = os.environ.get(str(env_name), "")
+        if token:
+            return token
+    raise RuntimeError(
+        "No token found. Set mail_api_token in persona.json "
+        "or mail_api_token_env pointing to an environment variable."
+    )
 
 
 def append_exports_to_claude_env(exports: dict[str, str]) -> None:

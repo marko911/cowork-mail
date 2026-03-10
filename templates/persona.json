@@ -1,10 +1,10 @@
 {
-  "persona_id": "north",
-  "display_name": "North",
+  "persona_id": "CHANGE_ME",
+  "display_name": "CHANGE_ME",
   "mail_server_url": "https://cowork-mail.fly.dev",
-  "mail_api_token_env": "COWORK_MAIL_TOKEN",
-  "team": ["south", "east", "west"],
-  "role": "implementation",
+  "mail_api_token": "PASTE_YOUR_TOKEN_HERE",
+  "team": [],
+  "role": "",
   "poll_interval_seconds": 30,
   "instructions": [
     "Coordinate via cowork mail for reviews, handoffs, and dependency requests.",

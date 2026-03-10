@@ -7,7 +7,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from common import (
     append_exports_to_claude_env,
     ensure_persona_fields,
-    env_token,
+    resolve_token,
     load_persona,
     log_file,
     pid_file,
@@ -26,19 +26,18 @@ def main() -> int:
         persona_id = str(persona["persona_id"])
         display_name = str(persona.get("display_name") or persona_id)
         mail_server_url = str(persona["mail_server_url"]).rstrip("/")
-        token_env = str(persona["mail_api_token_env"])
         poll_interval = int(persona.get("poll_interval_seconds", 30))
         team = persona.get("team", [])
         role = persona.get("role", "")
         instructions = persona.get("instructions", [])
-        token = env_token(persona)
+        token = resolve_token(persona)
 
         append_exports_to_claude_env(
             {
                 "COWORK_PERSONA_ID": persona_id,
                 "COWORK_DISPLAY_NAME": display_name,
                 "COWORK_MAIL_SERVER_URL": mail_server_url,
-                "COWORK_MAIL_API_TOKEN_ENV": token_env,
+                "COWORK_MAIL_TOKEN": token,
                 "COWORK_POLL_INTERVAL_SECONDS": str(poll_interval),
                 "COWORK_PERSONA_PATH": str(persona["_persona_path"]),
             }
