@@ -109,11 +109,14 @@ function createServer(): McpServer {
 
 const sessions = new Map<string, { transport: StreamableHTTPServerTransport; server: McpServer }>();
 
-async function getOrCreateSession(sessionId: string | null): Promise<{ transport: StreamableHTTPServerTransport; server: McpServer; isNew: boolean }> {
+function getExistingSession(sessionId: string | null): { transport: StreamableHTTPServerTransport; server: McpServer } | null {
   if (sessionId && sessions.has(sessionId)) {
-    return { ...sessions.get(sessionId)!, isNew: false };
+    return sessions.get(sessionId)!;
   }
+  return null;
+}
 
+async function createSession(): Promise<{ transport: StreamableHTTPServerTransport; server: McpServer }> {
   const server = createServer();
   const transport = new StreamableHTTPServerTransport({
     sessionIdGenerator: () => crypto.randomUUID(),
@@ -126,11 +129,14 @@ async function getOrCreateSession(sessionId: string | null): Promise<{ transport
     if (sid) sessions.delete(sid);
   };
 
-  if (transport.sessionId) {
-    sessions.set(transport.sessionId, { transport, server });
-  }
+  return { transport, server };
+}
 
-  return { transport, server, isNew: true };
+function storeSession(transport: StreamableHTTPServerTransport, server: McpServer) {
+  const sid = transport.sessionId;
+  if (sid && !sessions.has(sid)) {
+    sessions.set(sid, { transport, server });
+  }
 }
 
 // --- REST API ---
@@ -267,8 +273,15 @@ const httpServer = http.createServer(async (req, res) => {
         return;
       }
 
-      const { transport } = await getOrCreateSession(sessionId);
-      await transport.handleRequest(req, res);
+      const existing = getExistingSession(sessionId);
+      if (existing) {
+        await existing.transport.handleRequest(req, res);
+      } else {
+        const session = await createSession();
+        await session.transport.handleRequest(req, res);
+        // Store after handleRequest so sessionId is populated
+        storeSession(session.transport, session.server);
+      }
     } catch (err: unknown) {
       if (!res.headersSent) {
         json(res, 500, { error: err instanceof Error ? err.message : String(err) });
