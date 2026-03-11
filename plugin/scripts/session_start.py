@@ -7,7 +7,6 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from common import (
     append_exports_to_claude_env,
     ensure_persona_fields,
-    resolve_token,
     load_persona,
     log_file,
     pid_file,
@@ -30,20 +29,17 @@ def main() -> int:
         team = persona.get("team", [])
         role = persona.get("role", "")
         instructions = persona.get("instructions", [])
-        token = resolve_token(persona)
-
         append_exports_to_claude_env(
             {
                 "COWORK_PERSONA_ID": persona_id,
                 "COWORK_DISPLAY_NAME": display_name,
                 "COWORK_MAIL_SERVER_URL": mail_server_url,
-                "COWORK_MAIL_TOKEN": token,
                 "COWORK_POLL_INTERVAL_SECONDS": str(poll_interval),
                 "COWORK_PERSONA_PATH": str(persona["_persona_path"]),
             }
         )
 
-        register_persona_api(mail_server_url, persona_id, display_name, token)
+        register_persona_api(mail_server_url, persona_id, display_name)
 
         pf = pid_file(persona_id)
         lf = log_file(persona_id)
@@ -62,7 +58,6 @@ def main() -> int:
                 str(script),
                 mail_server_url,
                 persona_id,
-                token,
                 str(poll_interval),
             ]
             new_pid = start_detached_watcher(watcher_args, lf, lf)

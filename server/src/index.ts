@@ -14,7 +14,6 @@ import http from "http";
 import crypto from "crypto";
 
 const PORT = parseInt(process.env.COWORK_MAIL_PORT || "3141", 10);
-const AUTH_TOKEN = process.env.COWORK_MAIL_TOKEN || "";
 
 // --- MCP Server ---
 
@@ -228,18 +227,6 @@ async function handleRest(req: http.IncomingMessage, res: http.ServerResponse): 
   return false;
 }
 
-// --- Auth ---
-
-function checkAuth(req: http.IncomingMessage, res: http.ServerResponse): boolean {
-  if (!AUTH_TOKEN) return true;
-  const authHeader = req.headers.authorization;
-  if (authHeader === `Bearer ${AUTH_TOKEN}`) return true;
-  const url = new URL(req.url || "/", `http://localhost:${PORT}`);
-  if (url.searchParams.get("token") === AUTH_TOKEN) return true;
-  json(res, 401, { error: "unauthorized" });
-  return false;
-}
-
 // --- HTTP Server ---
 
 const httpServer = http.createServer(async (req, res) => {
@@ -251,7 +238,6 @@ const httpServer = http.createServer(async (req, res) => {
   if (req.method === "OPTIONS") { res.writeHead(204); res.end(); return; }
 
   const url = new URL(req.url || "/", `http://localhost:${PORT}`);
-  if (url.pathname !== "/health" && !checkAuth(req, res)) return;
   if (await handleRest(req, res)) return;
 
   if (url.pathname === "/mcp") {
@@ -295,7 +281,6 @@ const httpServer = http.createServer(async (req, res) => {
 
 httpServer.listen(PORT, () => {
   console.log(`cowork-mail v0.2.0 on http://0.0.0.0:${PORT}`);
-  if (!AUTH_TOKEN) console.log("  Warning: No COWORK_MAIL_TOKEN set — open mode");
 });
 
 process.on("SIGINT", () => { httpServer.close(); process.exit(0); });

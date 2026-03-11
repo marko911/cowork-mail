@@ -62,8 +62,6 @@ def load_persona(cwd: Path | None = None) -> dict[str, Any]:
 def ensure_persona_fields(data: dict[str, Any]) -> None:
     required = ["persona_id", "mail_server_url"]
     missing = [k for k in required if not data.get(k)]
-    if not data.get("mail_api_token") and not data.get("mail_api_token_env"):
-        missing.append("mail_api_token (or mail_api_token_env)")
     if missing:
         raise ValueError(f"missing required persona fields: {', '.join(missing)}")
 
@@ -124,46 +122,28 @@ def http_post_json(
         return json.loads(raw) if raw else {"ok": True}
 
 
-def unread_count(server: str, persona_id: str, token: str) -> dict[str, Any]:
+def unread_count(server: str, persona_id: str) -> dict[str, Any]:
     server = server.rstrip("/")
     query = urlencode({"persona_id": persona_id})
     url = f"{server}/api/unread?{query}"
-    headers = {"Accept": "application/json", "Authorization": f"Bearer {token}"}
+    headers = {"Accept": "application/json"}
     return http_get_json(url, headers)
 
 
 def register_persona_api(
-    server: str, persona_id: str, display_name: str, token: str
+    server: str, persona_id: str, display_name: str
 ) -> None:
     server = server.rstrip("/")
     url = f"{server}/api/register"
     headers = {
         "Accept": "application/json",
         "Content-Type": "application/json",
-        "Authorization": f"Bearer {token}",
     }
     payload = {"persona_id": persona_id, "display_name": display_name or persona_id}
     try:
         http_post_json(url, headers, payload)
     except Exception:
         pass
-
-
-def resolve_token(persona: dict[str, Any]) -> str:
-    # Direct token in persona.json takes priority
-    direct = persona.get("mail_api_token", "")
-    if direct:
-        return str(direct)
-    # Fall back to env var for power users
-    env_name = persona.get("mail_api_token_env", "")
-    if env_name:
-        token = os.environ.get(str(env_name), "")
-        if token:
-            return token
-    raise RuntimeError(
-        "No token found. Set mail_api_token in persona.json "
-        "or mail_api_token_env pointing to an environment variable."
-    )
 
 
 def append_exports_to_claude_env(exports: dict[str, str]) -> None:

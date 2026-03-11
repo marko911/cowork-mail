@@ -2,7 +2,6 @@
   "persona_id": "CHANGE_ME",
   "display_name": "CHANGE_ME",
   "mail_server_url": "https://cowork-mail.fly.dev",
-  "mail_api_token": "PASTE_YOUR_TOKEN_HERE",
   "team": [],
   "role": "",
   "poll_interval_seconds": 30,

@@ -19,14 +19,14 @@ from common import (
 
 
 def main() -> int:
-    if len(sys.argv) != 5:
+    if len(sys.argv) != 4:
         print(
-            "usage: mail_watcher.py <server> <persona_id> <token> <interval_seconds>",
+            "usage: mail_watcher.py <server> <persona_id> <interval_seconds>",
             file=sys.stderr,
         )
         return 2
 
-    server, persona_id, token, interval_raw = sys.argv[1:]
+    server, persona_id, interval_raw = sys.argv[1:]
     interval = max(5, int(interval_raw))
 
     wdir = watch_dir(persona_id)
@@ -37,7 +37,7 @@ def main() -> int:
 
     while True:
         try:
-            result = unread_count(server, persona_id, token)
+            result = unread_count(server, persona_id)
             count = int(result.get("unread", 0))
             latest = str(result.get("latest_message_id", ""))
 
