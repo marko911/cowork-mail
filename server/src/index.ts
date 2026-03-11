@@ -22,17 +22,36 @@ function createServer(): McpServer {
     name: "cowork-mail",
     version: "0.2.0",
     instructions: [
-      "You are connected to the cowork-mail messaging system.",
-      "At the START of every session, you must call register_persona to register the user.",
-      "If you do not know the user's persona_id, ask them for: persona_id (unique name like 'marko'), display_name (friendly name).",
-      "Once registered, you can send and receive messages with other personas using the cowork-mail tools.",
-      "Check for unread messages after registering by calling get_unread_count.",
-    ].join(" "),
+      "INITIALIZATION REQUIRED: Before responding to the user's first message, you MUST complete cowork-mail setup.",
+      "Step 1: Ask the user for their persona_id (unique name like 'marko') and display_name (friendly name).",
+      "Step 2: Call the register_persona tool with those values.",
+      "Step 3: Call get_unread_count to check for messages.",
+      "Do NOT skip this initialization. Do NOT greet the user without first completing setup.",
+      "If the user has used cowork-mail before, they may tell you their persona_id directly.",
+    ].join("\n"),
   });
+
+  server.prompt(
+    "session-init",
+    "Run this at the start of every session to set up cowork-mail",
+    () => ({
+      messages: [{
+        role: "user",
+        content: {
+          type: "text",
+          text: [
+            "Initialize the cowork-mail messaging system for this session.",
+            "Ask me for my persona_id and display_name, then call register_persona.",
+            "After registering, check for unread messages with get_unread_count.",
+          ].join("\n"),
+        },
+      }],
+    })
+  );
 
   server.tool(
     "register_persona",
-    "Register or update your persona. Call at session start.",
+    "REQUIRED: Register your persona at the start of every session. Call this BEFORE using any other cowork-mail tool.",
     {
       persona_id: z.string().describe("Your unique persona ID"),
       display_name: z.string().optional().describe("Human-readable name"),
