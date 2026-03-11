@@ -1,7 +1,6 @@
 {
   "persona_id": "CHANGE_ME",
   "display_name": "CHANGE_ME",
-  "mail_server_url": "https://cowork-mail.fly.dev",
   "team": [],
   "role": "",
   "poll_interval_seconds": 30,

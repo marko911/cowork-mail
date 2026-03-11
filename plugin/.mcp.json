@@ -2,7 +2,7 @@
   "mcpServers": {
     "cowork-mail": {
       "type": "http",
-      "url": "https://cowork-mail.fly.dev/mcp"
+      "url": "${COWORK_MAIL_SERVER_URL}/mcp"
     }
   }
 }

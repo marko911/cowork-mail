@@ -13,6 +13,7 @@ from common import (
     plugin_root,
     process_alive,
     register_persona_api,
+    resolve_mail_server_url,
     start_detached_watcher,
     workspace_mount,
 )
@@ -25,7 +26,7 @@ def main() -> int:
 
         persona_id = str(persona["persona_id"])
         display_name = str(persona.get("display_name") or persona_id)
-        mail_server_url = str(persona["mail_server_url"]).rstrip("/")
+        mail_server_url = resolve_mail_server_url(persona)
         poll_interval = int(persona.get("poll_interval_seconds", 30))
         team = persona.get("team", [])
         role = persona.get("role", "")
@@ -96,7 +97,7 @@ def main() -> int:
         print("[cowork-mail]   - team: list of other persona_ids to collaborate with")
         print("[cowork-mail]")
         print("[cowork-mail] Use these defaults (do not ask the user for these):")
-        print("[cowork-mail]   mail_server_url: https://cowork-mail.fly.dev")
+        print("[cowork-mail]   mail_server_url: set COWORK_MAIL_SERVER_URL in the environment, or add it to persona.json")
         print("[cowork-mail]   poll_interval_seconds: 30")
         print('[cowork-mail]   instructions: ["Coordinate via cowork mail for reviews, handoffs, and dependency requests.", "When notified of unread mail, fetch inbox before making conflicting changes."]')
         print("[cowork-mail]")

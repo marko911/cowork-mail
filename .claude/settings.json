@@ -1,0 +1,13 @@
+{
+  "extraKnownMarketplaces": {
+    "cowork-mail": {
+      "source": {
+        "source": "github",
+        "repo": "marko911/cowork-mail"
+      }
+    }
+  },
+  "enabledPlugins": {
+    "cowork-mail@cowork-mail": true
+  }
+}

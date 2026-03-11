@@ -35,14 +35,15 @@ def main() -> int:
     if not persona_dst.exists():
         shutil.copy2(plugin_dst / "templates" / "persona.json", persona_dst)
         print(f"Created template persona file at {persona_dst}")
-        print("Edit this file with your persona_id, project_key, and server URL.")
+        print("Edit this file with your persona_id and display details.")
+        print("Set COWORK_MAIL_SERVER_URL in the environment or add mail_server_url to the persona file.")
     else:
         print(f"Persona file already exists at {persona_dst}")
 
     print()
     print("Next steps:")
     print(f"  1. Edit {persona_dst} with your persona config")
-    print("  2. Set your token env var (e.g. export COWORK_MAIL_TOKEN=...)")
+    print("  2. Set COWORK_MAIL_SERVER_URL in the environment, unless it is stored in the persona file")
     print("  3. Start a new Claude Code session — the plugin will auto-bootstrap")
     return 0
 

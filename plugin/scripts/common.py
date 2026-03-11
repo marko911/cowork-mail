@@ -75,10 +75,18 @@ def load_persona(cwd: Path | None = None) -> dict[str, Any]:
 
 
 def ensure_persona_fields(data: dict[str, Any]) -> None:
-    required = ["persona_id", "mail_server_url"]
-    missing = [k for k in required if not data.get(k)]
+    missing = []
+    if not data.get("persona_id"):
+        missing.append("persona_id")
+    if not resolve_mail_server_url(data):
+        missing.append("mail_server_url or COWORK_MAIL_SERVER_URL")
     if missing:
         raise ValueError(f"missing required persona fields: {', '.join(missing)}")
+
+
+def resolve_mail_server_url(data: dict[str, Any]) -> str:
+    value = os.environ.get("COWORK_MAIL_SERVER_URL") or data.get("mail_server_url") or ""
+    return str(value).rstrip("/")
 
 
 def safe_key(persona_id: str) -> str:
