@@ -8,5 +8,6 @@
   "repository": "https://github.com/marko911/cowork-mail",
   "license": "MIT",
   "hooks": "./hooks/hooks.json",
-  "mcpServers": "./.mcp.json"
+  "mcpServers": "./.mcp.json",
+  "skills": ["./skills"]
 }

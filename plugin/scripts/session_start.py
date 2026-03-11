@@ -14,6 +14,7 @@ from common import (
     process_alive,
     register_persona_api,
     start_detached_watcher,
+    workspace_mount,
 )
 
 
@@ -76,7 +77,12 @@ def main() -> int:
         return 0
 
     except (FileNotFoundError, ValueError):
-        persona_path = str(Path.home() / ".claude" / "cowork" / "persona.json")
+        # Prefer workspace mount (persists across Cowork sessions)
+        ws = workspace_mount()
+        if ws:
+            persona_path = str(ws / ".cowork-mail" / "persona.json")
+        else:
+            persona_path = str(Path.home() / ".claude" / "cowork" / "persona.json")
         print("[cowork-mail] SETUP_REQUIRED")
         print("[cowork-mail]")
         print("[cowork-mail] The cowork-mail plugin needs a persona configuration.")
@@ -94,8 +100,7 @@ def main() -> int:
         print("[cowork-mail]   poll_interval_seconds: 30")
         print('[cowork-mail]   instructions: ["Coordinate via cowork mail for reviews, handoffs, and dependency requests.", "When notified of unread mail, fetch inbox before making conflicting changes."]')
         print("[cowork-mail]")
-        print("[cowork-mail] After writing the file, tell the user to start a new session")
-        print("[cowork-mail] so the plugin can bootstrap with their persona.")
+        print("[cowork-mail] After writing the file, re-run this script to complete bootstrap.")
         return 0
 
     except Exception as exc:

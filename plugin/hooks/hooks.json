@@ -2,11 +2,11 @@
   "hooks": {
     "SessionStart": [
       {
-        "matcher": "startup",
+        "matcher": ".*",
         "hooks": [
           {
             "type": "command",
-            "command": "python3 \"$CLAUDE_PLUGIN_ROOT/scripts/session_start.py\""
+            "command": "python3 \"$CLAUDE_PLUGIN_ROOT/scripts/debug_log.py\" SessionStart && python3 \"$CLAUDE_PLUGIN_ROOT/scripts/session_start.py\""
           }
         ]
       }
@@ -17,7 +17,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 \"$CLAUDE_PLUGIN_ROOT/scripts/check_marker.py\""
+            "command": "python3 \"$CLAUDE_PLUGIN_ROOT/scripts/debug_log.py\" PostToolUse && python3 \"$CLAUDE_PLUGIN_ROOT/scripts/check_marker.py\""
           }
         ]
       }
@@ -28,7 +28,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 \"$CLAUDE_PLUGIN_ROOT/scripts/check_marker.py\""
+            "command": "python3 \"$CLAUDE_PLUGIN_ROOT/scripts/debug_log.py\" Notification && python3 \"$CLAUDE_PLUGIN_ROOT/scripts/check_marker.py\""
           }
         ]
       }
@@ -39,7 +39,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 \"$CLAUDE_PLUGIN_ROOT/scripts/check_marker.py\""
+            "command": "python3 \"$CLAUDE_PLUGIN_ROOT/scripts/debug_log.py\" Stop && python3 \"$CLAUDE_PLUGIN_ROOT/scripts/check_marker.py\""
           }
         ]
       }

@@ -36,15 +36,30 @@ def run_root() -> Path:
     return root
 
 
+def workspace_mount(cwd: Path | None = None) -> Path | None:
+    """Return the persistent workspace mount if running inside a Cowork VM."""
+    cwd = cwd or Path.cwd()
+    mount = cwd / "mnt" / "claude-workspace"
+    if mount.is_dir():
+        return mount
+    return None
+
+
 def candidate_persona_paths(cwd: Path | None = None) -> list[Path]:
     cwd = cwd or Path.cwd()
     home = Path.home()
-    return [
+    paths = []
+    # Cowork VM: workspace mount persists across sessions
+    ws = workspace_mount(cwd)
+    if ws:
+        paths.append(ws / ".cowork-mail" / "persona.json")
+    paths += [
         cwd / ".claude" / "cowork" / "persona.json",
         cwd / ".claude" / "persona.json",
         home / ".claude" / "cowork" / "persona.json",
         home / ".claude" / "persona.json",
     ]
+    return paths
 
 
 def load_persona(cwd: Path | None = None) -> dict[str, Any]:
