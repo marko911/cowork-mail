@@ -18,7 +18,17 @@ const PORT = parseInt(process.env.COWORK_MAIL_PORT || "3141", 10);
 // --- MCP Server ---
 
 function createServer(): McpServer {
-  const server = new McpServer({ name: "cowork-mail", version: "0.2.0" });
+  const server = new McpServer({
+    name: "cowork-mail",
+    version: "0.2.0",
+    instructions: [
+      "You are connected to the cowork-mail messaging system.",
+      "At the START of every session, you must call register_persona to register the user.",
+      "If you do not know the user's persona_id, ask them for: persona_id (unique name like 'marko'), display_name (friendly name).",
+      "Once registered, you can send and receive messages with other personas using the cowork-mail tools.",
+      "Check for unread messages after registering by calling get_unread_count.",
+    ].join(" "),
+  });
 
   server.tool(
     "register_persona",
