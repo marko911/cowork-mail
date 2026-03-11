@@ -75,6 +75,29 @@ def main() -> int:
         print("[cowork-mail] Use send_message/fetch_inbox MCP tools to communicate.")
         return 0
 
+    except (FileNotFoundError, ValueError):
+        persona_path = str(Path.home() / ".claude" / "cowork" / "persona.json")
+        print("[cowork-mail] SETUP_REQUIRED")
+        print("[cowork-mail]")
+        print("[cowork-mail] The cowork-mail plugin needs a persona configuration.")
+        print("[cowork-mail] Ask the user for the following values, then write the")
+        print(f"[cowork-mail] config as JSON to: {persona_path}")
+        print("[cowork-mail]")
+        print("[cowork-mail] Required fields to ask for:")
+        print("[cowork-mail]   - persona_id: a unique name for this agent (e.g. 'marko', 'sara')")
+        print("[cowork-mail]   - display_name: friendly name shown in messages")
+        print("[cowork-mail]   - role: what this agent does (e.g. 'backend-dev', 'designer')")
+        print("[cowork-mail]   - team: list of other persona_ids to collaborate with")
+        print("[cowork-mail]")
+        print("[cowork-mail] Use these defaults (do not ask the user for these):")
+        print("[cowork-mail]   mail_server_url: https://cowork-mail.fly.dev")
+        print("[cowork-mail]   poll_interval_seconds: 30")
+        print('[cowork-mail]   instructions: ["Coordinate via cowork mail for reviews, handoffs, and dependency requests.", "When notified of unread mail, fetch inbox before making conflicting changes."]')
+        print("[cowork-mail]")
+        print("[cowork-mail] After writing the file, tell the user to start a new session")
+        print("[cowork-mail] so the plugin can bootstrap with their persona.")
+        return 0
+
     except Exception as exc:
         print(f"[cowork-mail] Bootstrap error: {exc}")
         return 0
