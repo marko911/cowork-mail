@@ -16,13 +16,22 @@ Set up the cowork-mail messaging system for the current session.
 ### 1. Run the bootstrap script
 
 ```bash
-python3 "$CLAUDE_PLUGIN_ROOT/scripts/session_start.py"
-```
-
-If `CLAUDE_PLUGIN_ROOT` is not set, find the script:
-
-```bash
-SCRIPT=$(find / -path "*/cowork-mail/scripts/session_start.py" 2>/dev/null | head -1) && python3 "$SCRIPT"
+if [ -n "$CLAUDE_PLUGIN_ROOT" ] && [ -f "$CLAUDE_PLUGIN_ROOT/scripts/session_start.py" ]; then
+  python3 "$CLAUDE_PLUGIN_ROOT/scripts/session_start.py"
+else
+  SCRIPT=$(
+    find "$HOME/.claude/plugins" \
+      -path "*/cowork-mail/*/scripts/session_start.py" \
+      -o -path "*/cowork-mail/scripts/session_start.py" \
+      2>/dev/null | head -1
+  )
+  if [ -n "$SCRIPT" ] && [ -f "$SCRIPT" ]; then
+    python3 "$SCRIPT"
+  else
+    echo "[cowork-mail] Bootstrap error: session_start.py not found"
+    echo "[cowork-mail] Checked CLAUDE_PLUGIN_ROOT and ~/.claude/plugins for the installed plugin."
+  fi
+fi
 ```
 
 ### 2. Interpret the output
