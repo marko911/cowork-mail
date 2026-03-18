@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import argparse
-import json
 import os
 import shutil
 import subprocess
@@ -13,16 +12,11 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from common import (
     ensure_persona_fields,
     load_persona,
-    log_file,
-    now_ts,
     plugin_root,
-    read_json,
     register_persona_api,
     resolve_mail_server_url,
     safe_error_message,
     unread_count,
-    watch_dir,
-    write_json,
 )
 
 
@@ -39,13 +33,12 @@ def parse_args() -> argparse.Namespace:
         "--poll-seconds",
         type=int,
         default=10,
-        help="How often to poll unread mail.",
+        help="How often to run claude -p.",
     )
     parser.add_argument(
-        "--stuck-retrigger-seconds",
-        type=int,
-        default=60,
-        help="Re-run claude -p for the same unread message after this many seconds.",
+        "--only-if-unread",
+        action="store_true",
+        help="Only invoke claude -p when the mail server reports unread mail.",
     )
     parser.add_argument(
         "--permission-mode",
@@ -65,10 +58,6 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def loop_state_path(persona_id: str) -> Path:
-    return watch_dir(persona_id) / "headless-loop.json"
-
-
 def build_prompt(persona: dict[str, object]) -> str:
     persona_id = str(persona["persona_id"])
     display_name = str(persona.get("display_name") or persona_id)
@@ -81,12 +70,13 @@ def build_prompt(persona: dict[str, object]) -> str:
             f"Role: {role}. Team: {team_str}.",
             "Run inside the current workspace and process cowork-mail autonomously.",
             "Steps:",
-            f"1. Use fetch_inbox for persona_id '{persona_id}' with unread_only=true.",
-            "2. Read each unread message payload and determine what work is requested.",
+            f"1. Check your cowork-mail inbox for persona_id '{persona_id}'.",
+            "2. If there are unread messages, fetch them and determine what work is requested.",
             "3. Perform the requested work in this workspace when appropriate.",
             f"4. Send replies with send_message using from_persona '{persona_id}'.",
             f"5. Acknowledge handled messages with ack_message or ack_all for persona_id '{persona_id}'.",
-            "6. Exit after the unread inbox is drained or there is no actionable work.",
+            "6. If there is no unread mail, exit quickly without doing extra work.",
+            "7. Exit after the unread inbox is drained or there is no actionable work.",
             "Do not ask a human for kickoff. Operate as an autonomous worker for this pass.",
         ]
     )
@@ -142,21 +132,6 @@ def run_claude(
     return result.returncode
 
 
-def should_invoke(
-    state: dict[str, object],
-    latest_message_id: str,
-    unread: int,
-    stuck_retrigger_seconds: int,
-) -> bool:
-    if unread <= 0:
-        return False
-    last_latest = str(state.get("latest_message_id") or "")
-    last_invoked_at = int(state.get("last_invoked_at") or 0)
-    if latest_message_id != last_latest:
-        return True
-    return now_ts() - last_invoked_at >= stuck_retrigger_seconds
-
-
 def main() -> int:
     args = parse_args()
     workspace_dir = Path(args.workspace_dir).resolve()
@@ -172,58 +147,34 @@ def main() -> int:
         print(f"[cowork-mail] Headless loop bootstrap error: {safe_error_message(exc)}")
         return 1
 
-    state_path = loop_state_path(persona_id)
-    loop_log = log_file(f"{persona_id}-headless")
-
     while True:
         try:
-            status = unread_count(mail_server_url, persona_id)
-            unread = int(status.get("unread", 0))
-            latest_message_id = str(status.get("latest_message_id", ""))
-            state = read_json(state_path, default={}) or {}
+            unread = None
+            latest_message_id = ""
+            if args.only_if_unread:
+                status = unread_count(mail_server_url, persona_id)
+                unread = int(status.get("unread", 0))
+                latest_message_id = str(status.get("latest_message_id", ""))
+                print(
+                    f"[cowork-mail] Poll unread={unread} latest={latest_message_id or '-'} "
+                    f"workspace={workspace_dir}"
+                )
+                if unread <= 0:
+                    if args.once:
+                        return 0
+                    time.sleep(max(5, args.poll_seconds))
+                    continue
+            else:
+                print(f"[cowork-mail] Poll workspace={workspace_dir}")
 
-            print(
-                f"[cowork-mail] Poll unread={unread} latest={latest_message_id or '-'} "
-                f"workspace={workspace_dir}"
+            code = run_claude(
+                workspace_dir,
+                persona,
+                mail_server_url,
+                args.permission_mode,
+                args.model,
             )
-
-            if should_invoke(
-                state,
-                latest_message_id,
-                unread,
-                args.stuck_retrigger_seconds,
-            ):
-                code = run_claude(
-                    workspace_dir,
-                    persona,
-                    mail_server_url,
-                    args.permission_mode,
-                    args.model,
-                )
-                write_json(
-                    state_path,
-                    {
-                        "timestamp": now_ts(),
-                        "latest_message_id": latest_message_id,
-                        "last_invoked_at": now_ts(),
-                        "last_exit_code": code,
-                        "workspace_dir": str(workspace_dir),
-                    },
-                )
-                with loop_log.open("a", encoding="utf-8") as f:
-                    f.write(
-                        json.dumps(
-                            {
-                                "timestamp": now_ts(),
-                                "event": "claude-run",
-                                "workspace_dir": str(workspace_dir),
-                                "latest_message_id": latest_message_id,
-                                "unread": unread,
-                                "exit_code": code,
-                            }
-                        )
-                        + "\n"
-                    )
+            print(f"[cowork-mail] claude -p exited with code {code}")
 
             if args.once:
                 return 0
