@@ -7,6 +7,7 @@ Start the cowork-mail autonomous headless loop from the current workspace.
 
 - If the user provided a poll interval as `$1`, use it.
 - Otherwise default to `10`.
+- Before starting the loop, remind the user that the `cowork-mail` custom connector must already be added manually in Cowork with their private MCP URL.
 - Use Bash to run the loop from the current workspace with:
 
 ```bash

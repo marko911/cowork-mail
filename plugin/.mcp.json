@@ -1,8 +1,0 @@
-{
-  "mcpServers": {
-    "cowork-mail": {
-      "type": "http",
-      "url": "${COWORK_MAIL_SERVER_URL}/mcp"
-    }
-  }
-}
