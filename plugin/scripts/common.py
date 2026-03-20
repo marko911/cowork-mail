@@ -24,14 +24,19 @@ def home_claude_dir() -> Path:
     return Path.home() / ".claude"
 
 
-def state_root() -> Path:
-    root = home_claude_dir() / "cowork" / "state"
+def context_claude_dir(cwd: Path | None = None) -> Path:
+    cwd = (cwd or Path.cwd()).resolve()
+    return cwd / ".claude"
+
+
+def state_root(cwd: Path | None = None) -> Path:
+    root = context_claude_dir(cwd) / "cowork" / "state"
     root.mkdir(parents=True, exist_ok=True)
     return root
 
 
-def run_root() -> Path:
-    root = home_claude_dir() / "cowork" / "run"
+def run_root(cwd: Path | None = None) -> Path:
+    root = context_claude_dir(cwd) / "cowork" / "run"
     root.mkdir(parents=True, exist_ok=True)
     return root
 
@@ -93,26 +98,26 @@ def safe_key(persona_id: str) -> str:
     return "".join(c if c.isalnum() or c in ("-", "_", ".") else "_" for c in persona_id)
 
 
-def watch_dir(persona_id: str) -> Path:
-    p = state_root() / safe_key(persona_id)
+def watch_dir(persona_id: str, cwd: Path | None = None) -> Path:
+    p = state_root(cwd) / safe_key(persona_id)
     p.mkdir(parents=True, exist_ok=True)
     return p
 
 
-def marker_file(persona_id: str) -> Path:
-    return watch_dir(persona_id) / "marker.json"
+def marker_file(persona_id: str, cwd: Path | None = None) -> Path:
+    return watch_dir(persona_id, cwd) / "marker.json"
 
 
-def unread_state_file(persona_id: str) -> Path:
-    return watch_dir(persona_id) / "unread-state.json"
+def unread_state_file(persona_id: str, cwd: Path | None = None) -> Path:
+    return watch_dir(persona_id, cwd) / "unread-state.json"
 
 
-def pid_file(persona_id: str) -> Path:
-    return run_root() / f"{safe_key(persona_id)}.pid"
+def pid_file(persona_id: str, cwd: Path | None = None) -> Path:
+    return run_root(cwd) / f"{safe_key(persona_id)}.pid"
 
 
-def log_file(persona_id: str) -> Path:
-    return run_root() / f"{safe_key(persona_id)}.log"
+def log_file(persona_id: str, cwd: Path | None = None) -> Path:
+    return run_root(cwd) / f"{safe_key(persona_id)}.log"
 
 
 def read_json(path: Path, default: Any = None) -> Any:

@@ -15,5 +15,5 @@ python3 "$CLAUDE_PLUGIN_ROOT/scripts/headless_mail_loop.py" --workspace-dir "$PW
 ```
 
 - Tell the user the exact command you are running before you run it.
-- After starting it, tell the user that logs are written under `~/.claude/cowork/run/` and status is written under `~/.claude/cowork/state/`.
+- After starting it, tell the user that logs are written under `./.claude/cowork/run/` in the current workspace and status is written under `./.claude/cowork/state/`.
 - After starting it, confirm that it is a long-running background-style loop that repeatedly invokes `claude -p` from this workspace.

@@ -87,8 +87,8 @@ def build_prompt(persona: dict[str, object]) -> str:
     )
 
 
-def status_path(persona_id: str) -> Path:
-    return watch_dir(persona_id) / "headless-status.json"
+def status_path(persona_id: str, workspace_dir: Path) -> Path:
+    return watch_dir(persona_id, workspace_dir) / "headless-status.json"
 
 
 def append_log(path: Path, message: str) -> None:
@@ -189,8 +189,8 @@ def main() -> int:
         print(f"[cowork-mail] Headless loop bootstrap error: {safe_error_message(exc)}")
         return 1
 
-    loop_log = log_file(f"{persona_id}-headless")
-    loop_status = status_path(persona_id)
+    loop_log = log_file(f"{persona_id}-headless", workspace_dir)
+    loop_status = status_path(persona_id, workspace_dir)
     start_message = f"[cowork-mail] Headless loop log: {loop_log}"
     print(start_message)
     append_log(loop_log, start_message)
