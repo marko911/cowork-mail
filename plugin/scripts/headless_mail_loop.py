@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 import os
 import shutil
 import subprocess
@@ -11,12 +12,16 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from common import (
     ensure_persona_fields,
+    log_file,
     load_persona,
+    now_ts,
     plugin_root,
     register_persona_api,
     resolve_mail_server_url,
+    write_json,
     safe_error_message,
     unread_count,
+    watch_dir,
 )
 
 
@@ -82,17 +87,35 @@ def build_prompt(persona: dict[str, object]) -> str:
     )
 
 
+def status_path(persona_id: str) -> Path:
+    return watch_dir(persona_id) / "headless-status.json"
+
+
+def append_log(path: Path, message: str) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("a", encoding="utf-8") as f:
+        f.write(message.rstrip() + "\n")
+
+
+def log_event(path: Path, event: str, **fields: object) -> None:
+    payload = {"timestamp": now_ts(), "event": event, **fields}
+    append_log(path, json.dumps(payload, ensure_ascii=False))
+
+
 def run_claude(
     workspace_dir: Path,
     persona: dict[str, object],
     mail_server_url: str,
     permission_mode: str,
     model: str,
-) -> int:
+    loop_log: Path,
+) -> tuple[int, str, str]:
     claude_bin = shutil.which("claude")
     if not claude_bin:
-        print("[cowork-mail] Headless loop error: 'claude' command not found")
-        return 127
+        message = "[cowork-mail] Headless loop error: 'claude' command not found"
+        print(message)
+        append_log(loop_log, message)
+        return 127, "", message
 
     root = plugin_root()
     prompt = build_prompt(persona)
@@ -117,6 +140,13 @@ def run_claude(
 
     print(f"[cowork-mail] Launching claude -p from {workspace_dir}")
     print(f"[cowork-mail] Command: {' '.join(cmd[:-1])} <prompt>")
+    log_event(
+        loop_log,
+        "claude_start",
+        workspace_dir=str(workspace_dir),
+        command=cmd[:-1],
+        persona_id=str(persona["persona_id"]),
+    )
     result = subprocess.run(
         cmd,
         cwd=str(workspace_dir),
@@ -127,9 +157,21 @@ def run_claude(
     )
     if result.stdout.strip():
         print(result.stdout.rstrip())
+        append_log(loop_log, "----- claude stdout begin -----")
+        append_log(loop_log, result.stdout.rstrip())
+        append_log(loop_log, "----- claude stdout end -----")
     if result.stderr.strip():
         print(result.stderr.rstrip(), file=sys.stderr)
-    return result.returncode
+        append_log(loop_log, "----- claude stderr begin -----")
+        append_log(loop_log, result.stderr.rstrip())
+        append_log(loop_log, "----- claude stderr end -----")
+    log_event(
+        loop_log,
+        "claude_exit",
+        exit_code=result.returncode,
+        workspace_dir=str(workspace_dir),
+    )
+    return result.returncode, result.stdout, result.stderr
 
 
 def main() -> int:
@@ -147,6 +189,20 @@ def main() -> int:
         print(f"[cowork-mail] Headless loop bootstrap error: {safe_error_message(exc)}")
         return 1
 
+    loop_log = log_file(f"{persona_id}-headless")
+    loop_status = status_path(persona_id)
+    start_message = f"[cowork-mail] Headless loop log: {loop_log}"
+    print(start_message)
+    append_log(loop_log, start_message)
+    log_event(
+        loop_log,
+        "loop_start",
+        workspace_dir=str(workspace_dir),
+        persona_id=persona_id,
+        poll_seconds=max(5, args.poll_seconds),
+        model=args.model,
+    )
+
     while True:
         try:
             unread = None
@@ -159,30 +215,89 @@ def main() -> int:
                     f"[cowork-mail] Poll unread={unread} latest={latest_message_id or '-'} "
                     f"workspace={workspace_dir}"
                 )
+                log_event(
+                    loop_log,
+                    "poll",
+                    unread=unread,
+                    latest_message_id=latest_message_id,
+                    workspace_dir=str(workspace_dir),
+                )
                 if unread <= 0:
+                    write_json(
+                        loop_status,
+                        {
+                            "timestamp": now_ts(),
+                            "persona_id": persona_id,
+                            "workspace_dir": str(workspace_dir),
+                            "state": "idle",
+                            "unread": unread,
+                            "latest_message_id": latest_message_id,
+                        },
+                    )
                     if args.once:
                         return 0
                     time.sleep(max(5, args.poll_seconds))
                     continue
             else:
                 print(f"[cowork-mail] Poll workspace={workspace_dir}")
+                log_event(loop_log, "poll", workspace_dir=str(workspace_dir))
 
-            code = run_claude(
+            write_json(
+                loop_status,
+                {
+                    "timestamp": now_ts(),
+                    "persona_id": persona_id,
+                    "workspace_dir": str(workspace_dir),
+                    "state": "running",
+                    "unread": unread,
+                    "latest_message_id": latest_message_id,
+                },
+            )
+
+            code, stdout, stderr = run_claude(
                 workspace_dir,
                 persona,
                 mail_server_url,
                 args.permission_mode,
                 args.model,
+                loop_log,
             )
             print(f"[cowork-mail] claude -p exited with code {code}")
+            write_json(
+                loop_status,
+                {
+                    "timestamp": now_ts(),
+                    "persona_id": persona_id,
+                    "workspace_dir": str(workspace_dir),
+                    "state": "completed",
+                    "unread": unread,
+                    "latest_message_id": latest_message_id,
+                    "last_exit_code": code,
+                    "last_stdout_preview": stdout[-1000:] if stdout else "",
+                    "last_stderr_preview": stderr[-1000:] if stderr else "",
+                },
+            )
 
             if args.once:
                 return 0
 
         except KeyboardInterrupt:
+            log_event(loop_log, "loop_interrupt", workspace_dir=str(workspace_dir))
             return 130
         except Exception as exc:
-            print(f"[cowork-mail] Headless loop error: {safe_error_message(exc)}")
+            message = safe_error_message(exc)
+            print(f"[cowork-mail] Headless loop error: {message}")
+            log_event(loop_log, "loop_error", error=message, workspace_dir=str(workspace_dir))
+            write_json(
+                loop_status,
+                {
+                    "timestamp": now_ts(),
+                    "persona_id": persona_id,
+                    "workspace_dir": str(workspace_dir),
+                    "state": "error",
+                    "error": message,
+                },
+            )
             if args.once:
                 return 1
 
