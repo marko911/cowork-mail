@@ -13,10 +13,22 @@ Start the cowork-mail autonomous headless loop from the current workspace.
 - The loop reads `mail_server_url` from the workspace persona file and generates a temporary MCP config for the spawned `claude -p` process.
 - The required value is the mail server base URL, not the `/mcp` endpoint.
 - If the persona file is missing `mail_server_url`, tell the user to add it before starting the loop.
-- Use Bash to run the loop from the current workspace with:
+- Use Bash to run the loop from the current workspace with this exact logic:
 
 ```bash
-python3 "$CLAUDE_PLUGIN_ROOT/scripts/start_headless_agent.py" --workspace-dir "$PWD" --poll-seconds "${1:-10}"
+SCRIPT=""
+if [ -n "$CLAUDE_PLUGIN_ROOT" ] && [ -f "$CLAUDE_PLUGIN_ROOT/scripts/start_headless_agent.py" ]; then
+  SCRIPT="$CLAUDE_PLUGIN_ROOT/scripts/start_headless_agent.py"
+else
+  SCRIPT="$(find "$HOME/.claude/plugins" "$HOME/.claude/plugins/cache" /sessions -path "*/cowork-mail/*/scripts/start_headless_agent.py" 2>/dev/null | sort | tail -1)"
+fi
+
+if [ -z "$SCRIPT" ] || [ ! -f "$SCRIPT" ]; then
+  echo "[cowork-mail] start_headless_agent.py not found" >&2
+  exit 1
+fi
+
+python3 "$SCRIPT" --workspace-dir "$PWD" --poll-seconds "${1:-10}"
 ```
 
 - Tell the user the exact command you are running before you run it.
