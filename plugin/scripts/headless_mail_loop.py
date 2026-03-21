@@ -60,6 +60,12 @@ def parse_args() -> argparse.Namespace:
         help="Model alias passed to claude -p.",
     )
     parser.add_argument(
+        "--claude-timeout-seconds",
+        type=int,
+        default=120,
+        help="Maximum time to wait for each claude -p pass before terminating it.",
+    )
+    parser.add_argument(
         "--once",
         action="store_true",
         help="Poll once and exit.",
@@ -164,17 +170,18 @@ def run_claude(
     mail_server_url: str,
     permission_mode: str,
     model: str,
+    claude_timeout_seconds: int,
     loop_log: Path,
     loop_status: Path,
     loop_error: Path,
-) -> tuple[int, str, str]:
+) -> tuple[int, str, str, bool]:
     claude_bin = shutil.which("claude")
     if not claude_bin:
         message = "[cowork-mail] Headless loop error: 'claude' command not found"
         print(message)
         append_log(loop_log, message)
         write_json(loop_error, {"timestamp": now_ts(), "error": message})
-        return 127, "", message
+        return 127, "", message, False
 
     root = plugin_root()
     prompt = build_prompt(persona)
@@ -214,6 +221,7 @@ def run_claude(
     proc = None
     stdout_text = ""
     stderr_text = ""
+    timed_out = False
     try:
         proc = subprocess.Popen(
             cmd,
@@ -250,7 +258,58 @@ def run_claude(
         )
         stdout_thread.start()
         stderr_thread.start()
-        returncode = proc.wait()
+        start_ts = time.monotonic()
+        last_heartbeat = -5.0
+        while True:
+            returncode = proc.poll()
+            elapsed = time.monotonic() - start_ts
+            if returncode is not None:
+                break
+            if elapsed - last_heartbeat >= 5:
+                last_heartbeat = elapsed
+                log_event(
+                    loop_log,
+                    "claude_heartbeat",
+                    pid=proc.pid,
+                    elapsed_seconds=int(elapsed),
+                    timeout_seconds=max(1, claude_timeout_seconds),
+                    workspace_dir=str(workspace_dir),
+                )
+                write_json(
+                    loop_status,
+                    {
+                        "timestamp": now_ts(),
+                        "persona_id": str(persona["persona_id"]),
+                        "workspace_dir": str(workspace_dir),
+                        "state": "running",
+                        "child_pid": proc.pid,
+                        "child_elapsed_seconds": int(elapsed),
+                        "claude_timeout_seconds": max(1, claude_timeout_seconds),
+                    },
+                )
+            if elapsed >= max(1, claude_timeout_seconds):
+                timed_out = True
+                log_event(
+                    loop_log,
+                    "claude_timeout",
+                    pid=proc.pid,
+                    elapsed_seconds=int(elapsed),
+                    timeout_seconds=max(1, claude_timeout_seconds),
+                    workspace_dir=str(workspace_dir),
+                )
+                append_log(
+                    loop_log,
+                    f"[cowork-mail] claude -p timed out after {int(elapsed)}s; terminating PID {proc.pid}",
+                )
+                proc.terminate()
+                try:
+                    returncode = proc.wait(timeout=10)
+                except subprocess.TimeoutExpired:
+                    append_log(loop_log, f"[cowork-mail] claude -p did not terminate; killing PID {proc.pid}")
+                    proc.kill()
+                    returncode = proc.wait(timeout=10)
+                break
+            time.sleep(1)
         stdout_thread.join()
         stderr_thread.join()
         stdout_text = stdout_result[0]
@@ -267,15 +326,20 @@ def run_claude(
                 loop_error,
                 {
                     "timestamp": now_ts(),
-                    "error": f"claude -p exited with code {returncode}",
+                    "error": (
+                        f"claude -p timed out after {max(1, claude_timeout_seconds)}s"
+                        if timed_out
+                        else f"claude -p exited with code {returncode}"
+                    ),
                     "pid": proc.pid,
+                    "timed_out": timed_out,
                     "stdout_tail": stdout_text[-2000:],
                     "stderr_tail": stderr_text[-2000:],
                 },
             )
         elif loop_error.exists():
             loop_error.unlink()
-        return returncode, stdout_text, stderr_text
+        return returncode, stdout_text, stderr_text, timed_out
     except Exception as exc:
         details = safe_error_message(exc)
         append_log(loop_log, f"[cowork-mail] Headless loop child-launch error: {details}")
@@ -289,7 +353,7 @@ def run_claude(
             },
         )
         log_event(loop_log, "claude_launch_error", error=details, workspace_dir=str(workspace_dir))
-        return 1, stdout_text, f"{stderr_text}\n{details}".strip()
+        return 1, stdout_text, f"{stderr_text}\n{details}".strip(), False
     finally:
         try:
             runtime_mcp_config.unlink(missing_ok=True)
@@ -330,6 +394,7 @@ def main() -> int:
         persona_id=persona_id,
         poll_seconds=max(5, args.poll_seconds),
         model=args.model,
+        claude_timeout_seconds=max(1, args.claude_timeout_seconds),
     )
 
     def handle_signal(signum: int, _frame) -> None:
@@ -402,12 +467,13 @@ def main() -> int:
                 },
             )
 
-            code, stdout, stderr = run_claude(
+            code, stdout, stderr, timed_out = run_claude(
                 workspace_dir,
                 persona,
                 mail_server_url,
                 args.permission_mode,
                 args.model,
+                args.claude_timeout_seconds,
                 loop_log,
                 loop_status,
                 loop_error,
@@ -419,10 +485,11 @@ def main() -> int:
                     "timestamp": now_ts(),
                     "persona_id": persona_id,
                     "workspace_dir": str(workspace_dir),
-                    "state": "completed",
+                    "state": "timed_out" if timed_out else "completed",
                     "unread": unread,
                     "latest_message_id": latest_message_id,
                     "last_exit_code": code,
+                    "timed_out": timed_out,
                     "last_stdout_preview": stdout[-1000:] if stdout else "",
                     "last_stderr_preview": stderr[-1000:] if stderr else "",
                 },
