@@ -189,6 +189,7 @@ def run_claude(
     env["COWORK_MAIL_SERVER_URL"] = mail_server_url
     env["COWORK_PERSONA_ID"] = str(persona["persona_id"])
     env["COWORK_DISPLAY_NAME"] = str(persona.get("display_name") or persona["persona_id"])
+    env["COWORK_MAIL_AUTORUN_DISABLED"] = "1"
     runtime_mcp_config = write_runtime_mcp_config(mail_server_url)
 
     cmd = [

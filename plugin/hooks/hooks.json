@@ -6,29 +6,9 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 \"$CLAUDE_PLUGIN_ROOT/scripts/debug_log.py\" SessionStart && python3 \"$CLAUDE_PLUGIN_ROOT/scripts/session_start.py\""
-          }
-        ]
-      }
-    ],
-    "PostToolUse": [
-      {
-        "matcher": ".*",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "python3 \"$CLAUDE_PLUGIN_ROOT/scripts/debug_log.py\" PostToolUse && python3 \"$CLAUDE_PLUGIN_ROOT/scripts/check_marker.py\""
-          }
-        ]
-      }
-    ],
-    "Notification": [
-      {
-        "matcher": ".*",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "python3 \"$CLAUDE_PLUGIN_ROOT/scripts/debug_log.py\" Notification && python3 \"$CLAUDE_PLUGIN_ROOT/scripts/check_marker.py\""
+            "command": "if [ -z \"$COWORK_MAIL_AUTORUN_DISABLED\" ]; then python3 \"$CLAUDE_PLUGIN_ROOT/scripts/debug_log.py\" SessionStart && python3 \"$CLAUDE_PLUGIN_ROOT/scripts/session_start.py\" && python3 \"$CLAUDE_PLUGIN_ROOT/scripts/autorun_once.py\" --workspace-dir \"$CLAUDE_PROJECT_DIR\" --reason SessionStart; fi",
+            "async": true,
+            "timeout": 180
           }
         ]
       }
@@ -39,7 +19,9 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 \"$CLAUDE_PLUGIN_ROOT/scripts/debug_log.py\" Stop && python3 \"$CLAUDE_PLUGIN_ROOT/scripts/check_marker.py\""
+            "command": "if [ -z \"$COWORK_MAIL_AUTORUN_DISABLED\" ]; then python3 \"$CLAUDE_PLUGIN_ROOT/scripts/debug_log.py\" Stop && python3 \"$CLAUDE_PLUGIN_ROOT/scripts/check_marker.py\" && python3 \"$CLAUDE_PLUGIN_ROOT/scripts/autorun_once.py\" --workspace-dir \"$CLAUDE_PROJECT_DIR\" --reason Stop; fi",
+            "async": true,
+            "timeout": 180
           }
         ]
       }

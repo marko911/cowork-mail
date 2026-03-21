@@ -10,14 +10,8 @@ from common import (
     append_exports_to_claude_env,
     ensure_persona_fields,
     load_persona,
-    log_file,
-    marker_file,
-    pid_file,
-    plugin_root,
-    process_alive,
     register_persona_api,
     resolve_mail_server_url,
-    start_detached_watcher,
 )
 
 
@@ -76,28 +70,6 @@ def bootstrap_if_needed() -> bool:
 
     register_persona_api(mail_server_url, persona_id, display_name)
 
-    # Start watcher if not running
-    pf = pid_file(persona_id)
-    lf = log_file(persona_id)
-    pid = -1
-    if pf.exists():
-        try:
-            pid = int(pf.read_text(encoding="utf-8").strip())
-        except Exception:
-            pid = -1
-
-    if not process_alive(pid):
-        script = plugin_root() / "scripts" / "mail_watcher.py"
-        watcher_args = [
-            sys.executable,
-            str(script),
-            mail_server_url,
-            persona_id,
-            str(poll_interval),
-        ]
-        new_pid = start_detached_watcher(watcher_args, lf, lf)
-        pf.write_text(str(new_pid), encoding="utf-8")
-
     team_str = ", ".join(team) if team else "none configured"
     print(f"[cowork-mail] Persona: {persona_id} ({display_name})")
     print(f"[cowork-mail] Role: {role or 'unset'} | Team: {team_str}")
@@ -114,25 +86,6 @@ def main() -> int:
     if not bootstrap_if_needed():
         return 0
 
-    persona_id = os.environ.get("COWORK_PERSONA_ID", "").strip()
-    if not persona_id:
-        return 0
-
-    path = marker_file(persona_id)
-    if not path.exists():
-        return 0
-
-    try:
-        data = json.loads(path.read_text(encoding="utf-8"))
-        count = int(data.get("unread", 0))
-    except Exception:
-        count = 1
-
-    if count > 0:
-        print(
-            f"[cowork-mail] You have {count} unread message(s). "
-            "Use fetch_inbox to check your mail before continuing."
-        )
     return 0
 
 
