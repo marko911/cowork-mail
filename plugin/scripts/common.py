@@ -26,6 +26,9 @@ def home_claude_dir() -> Path:
 
 def context_claude_dir(cwd: Path | None = None) -> Path:
     cwd = (cwd or Path.cwd()).resolve()
+    ws = workspace_mount(cwd)
+    if ws:
+        return ws / ".claude"
     return cwd / ".claude"
 
 

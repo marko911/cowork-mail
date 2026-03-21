@@ -13,6 +13,7 @@ from common import (
     process_alive,
     run_root,
     start_detached_watcher,
+    workspace_mount,
     write_json,
 )
 
@@ -42,6 +43,9 @@ def headless_pid_path(persona_id: str, workspace_dir: Path) -> Path:
 def main() -> int:
     args = parse_args()
     workspace_dir = Path(args.workspace_dir).resolve()
+    mounted_workspace = workspace_mount(workspace_dir)
+    if mounted_workspace:
+        workspace_dir = mounted_workspace.resolve()
 
     try:
         persona = load_persona(workspace_dir)
