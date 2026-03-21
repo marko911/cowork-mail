@@ -4,11 +4,14 @@ import argparse
 import json
 import os
 import shutil
+import signal
 import subprocess
 import sys
 import tempfile
+import traceback
 import time
 from pathlib import Path
+from threading import Thread
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from common import (
@@ -92,6 +95,14 @@ def status_path(persona_id: str, workspace_dir: Path) -> Path:
     return watch_dir(persona_id, workspace_dir) / "headless-status.json"
 
 
+def error_path(persona_id: str, workspace_dir: Path) -> Path:
+    return watch_dir(persona_id, workspace_dir) / "headless-last-error.json"
+
+
+def claude_pid_path(persona_id: str, workspace_dir: Path) -> Path:
+    return log_file(f"{persona_id}-claude", workspace_dir).with_suffix(".pid")
+
+
 def append_log(path: Path, message: str) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("a", encoding="utf-8") as f:
@@ -101,6 +112,29 @@ def append_log(path: Path, message: str) -> None:
 def log_event(path: Path, event: str, **fields: object) -> None:
     payload = {"timestamp": now_ts(), "event": event, **fields}
     append_log(path, json.dumps(payload, ensure_ascii=False))
+
+
+def stream_pipe(pipe, loop_log: Path, section: str, sink) -> str:
+    chunks: list[str] = []
+    if pipe is None:
+        return ""
+    append_log(loop_log, f"----- claude {section} begin -----")
+    try:
+        for line in pipe:
+            chunks.append(line)
+            text = line.rstrip("\n")
+            if text:
+                append_log(loop_log, f"[claude {section}] {text}")
+            else:
+                append_log(loop_log, f"[claude {section}]")
+            print(text if text else "", file=sink)
+    finally:
+        try:
+            pipe.close()
+        except Exception:
+            pass
+    append_log(loop_log, f"----- claude {section} end -----")
+    return "".join(chunks)
 
 
 def write_runtime_mcp_config(mail_server_url: str) -> Path:
@@ -131,12 +165,15 @@ def run_claude(
     permission_mode: str,
     model: str,
     loop_log: Path,
+    loop_status: Path,
+    loop_error: Path,
 ) -> tuple[int, str, str]:
     claude_bin = shutil.which("claude")
     if not claude_bin:
         message = "[cowork-mail] Headless loop error: 'claude' command not found"
         print(message)
         append_log(loop_log, message)
+        write_json(loop_error, {"timestamp": now_ts(), "error": message})
         return 127, "", message
 
     root = plugin_root()
@@ -174,37 +211,95 @@ def run_claude(
         runtime_mcp_config=str(runtime_mcp_config),
         persona_id=str(persona["persona_id"]),
     )
+    proc = None
+    stdout_text = ""
+    stderr_text = ""
     try:
-        result = subprocess.run(
+        proc = subprocess.Popen(
             cmd,
             cwd=str(workspace_dir),
             env=env,
             text=True,
-            capture_output=True,
-            check=False,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            bufsize=1,
         )
+        pid_path = claude_pid_path(str(persona["persona_id"]), workspace_dir)
+        pid_path.write_text(str(proc.pid), encoding="utf-8")
+        log_event(loop_log, "claude_spawned", pid=proc.pid, workspace_dir=str(workspace_dir))
+        write_json(
+            loop_status,
+            {
+                "timestamp": now_ts(),
+                "persona_id": str(persona["persona_id"]),
+                "workspace_dir": str(workspace_dir),
+                "state": "running",
+                "child_pid": proc.pid,
+            },
+        )
+        stdout_result: list[str] = [""]
+        stderr_result: list[str] = [""]
+
+        stdout_thread = Thread(
+            target=lambda: stdout_result.__setitem__(0, stream_pipe(proc.stdout, loop_log, "stdout", sys.stdout)),
+            daemon=True,
+        )
+        stderr_thread = Thread(
+            target=lambda: stderr_result.__setitem__(0, stream_pipe(proc.stderr, loop_log, "stderr", sys.stderr)),
+            daemon=True,
+        )
+        stdout_thread.start()
+        stderr_thread.start()
+        returncode = proc.wait()
+        stdout_thread.join()
+        stderr_thread.join()
+        stdout_text = stdout_result[0]
+        stderr_text = stderr_result[0]
+        log_event(
+            loop_log,
+            "claude_exit",
+            exit_code=returncode,
+            pid=proc.pid,
+            workspace_dir=str(workspace_dir),
+        )
+        if returncode != 0:
+            write_json(
+                loop_error,
+                {
+                    "timestamp": now_ts(),
+                    "error": f"claude -p exited with code {returncode}",
+                    "pid": proc.pid,
+                    "stdout_tail": stdout_text[-2000:],
+                    "stderr_tail": stderr_text[-2000:],
+                },
+            )
+        elif loop_error.exists():
+            loop_error.unlink()
+        return returncode, stdout_text, stderr_text
+    except Exception as exc:
+        details = safe_error_message(exc)
+        append_log(loop_log, f"[cowork-mail] Headless loop child-launch error: {details}")
+        append_log(loop_log, traceback.format_exc().rstrip())
+        write_json(
+            loop_error,
+            {
+                "timestamp": now_ts(),
+                "error": details,
+                "traceback": traceback.format_exc(),
+            },
+        )
+        log_event(loop_log, "claude_launch_error", error=details, workspace_dir=str(workspace_dir))
+        return 1, stdout_text, f"{stderr_text}\n{details}".strip()
     finally:
         try:
             runtime_mcp_config.unlink(missing_ok=True)
         except Exception:
             pass
-    if result.stdout.strip():
-        print(result.stdout.rstrip())
-        append_log(loop_log, "----- claude stdout begin -----")
-        append_log(loop_log, result.stdout.rstrip())
-        append_log(loop_log, "----- claude stdout end -----")
-    if result.stderr.strip():
-        print(result.stderr.rstrip(), file=sys.stderr)
-        append_log(loop_log, "----- claude stderr begin -----")
-        append_log(loop_log, result.stderr.rstrip())
-        append_log(loop_log, "----- claude stderr end -----")
-    log_event(
-        loop_log,
-        "claude_exit",
-        exit_code=result.returncode,
-        workspace_dir=str(workspace_dir),
-    )
-    return result.returncode, result.stdout, result.stderr
+        if proc is not None:
+            try:
+                claude_pid_path(str(persona["persona_id"]), workspace_dir).unlink(missing_ok=True)
+            except Exception:
+                pass
 
 
 def main() -> int:
@@ -224,6 +319,7 @@ def main() -> int:
 
     loop_log = log_file(f"{persona_id}-headless", workspace_dir)
     loop_status = status_path(persona_id, workspace_dir)
+    loop_error = error_path(persona_id, workspace_dir)
     start_message = f"[cowork-mail] Headless loop log: {loop_log}"
     print(start_message)
     append_log(loop_log, start_message)
@@ -235,6 +331,25 @@ def main() -> int:
         poll_seconds=max(5, args.poll_seconds),
         model=args.model,
     )
+
+    def handle_signal(signum: int, _frame) -> None:
+        signame = signal.Signals(signum).name
+        log_event(loop_log, "loop_signal", signal=signame, workspace_dir=str(workspace_dir))
+        write_json(
+            loop_error,
+            {
+                "timestamp": now_ts(),
+                "error": f"headless loop received signal {signame}",
+                "workspace_dir": str(workspace_dir),
+            },
+        )
+        raise SystemExit(128 + signum)
+
+    for sig in (signal.SIGTERM, signal.SIGHUP, signal.SIGINT):
+        try:
+            signal.signal(sig, handle_signal)
+        except Exception:
+            pass
 
     while True:
         try:
@@ -294,6 +409,8 @@ def main() -> int:
                 args.permission_mode,
                 args.model,
                 loop_log,
+                loop_status,
+                loop_error,
             )
             print(f"[cowork-mail] claude -p exited with code {code}")
             write_json(
@@ -316,11 +433,30 @@ def main() -> int:
 
         except KeyboardInterrupt:
             log_event(loop_log, "loop_interrupt", workspace_dir=str(workspace_dir))
+            write_json(
+                loop_error,
+                {
+                    "timestamp": now_ts(),
+                    "error": "headless loop interrupted",
+                    "workspace_dir": str(workspace_dir),
+                },
+            )
             return 130
         except Exception as exc:
             message = safe_error_message(exc)
             print(f"[cowork-mail] Headless loop error: {message}")
             log_event(loop_log, "loop_error", error=message, workspace_dir=str(workspace_dir))
+            append_log(loop_log, traceback.format_exc().rstrip())
+            write_json(
+                loop_error,
+                {
+                    "timestamp": now_ts(),
+                    "persona_id": persona_id,
+                    "workspace_dir": str(workspace_dir),
+                    "error": message,
+                    "traceback": traceback.format_exc(),
+                },
+            )
             write_json(
                 loop_status,
                 {

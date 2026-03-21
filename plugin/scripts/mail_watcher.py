@@ -1,11 +1,13 @@
 from __future__ import annotations
 
+import json
 import sys
 import time
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from common import (
+    log_file,
     marker_file,
     now_ts,
     platform_notify,
@@ -30,16 +32,34 @@ def main() -> int:
     interval = max(5, int(interval_raw))
 
     wdir = watch_dir(persona_id)
+    watcher_log = log_file(f"{persona_id}-watcher")
     state_path = unread_state_file(persona_id)
     marker_path = marker_file(persona_id)
     lock_path = wdir / "notified.lock"
     error_path = wdir / "last-error.json"
+    watcher_log.parent.mkdir(parents=True, exist_ok=True)
+
+    def append(line: str) -> None:
+        with watcher_log.open("a", encoding="utf-8") as f:
+            f.write(line.rstrip() + "\n")
 
     while True:
         try:
             result = unread_count(server, persona_id)
             count = int(result.get("unread", 0))
             latest = str(result.get("latest_message_id", ""))
+            append(
+                json.dumps(
+                    {
+                        "timestamp": now_ts(),
+                        "event": "poll",
+                        "persona_id": persona_id,
+                        "unread": count,
+                        "latest_message_id": latest,
+                    },
+                    ensure_ascii=False,
+                )
+            )
 
             prev = read_json(state_path, default={}) or {}
             prev_count = int(prev.get("unread", 0))
@@ -75,7 +95,19 @@ def main() -> int:
                 error_path.unlink()
 
         except Exception as exc:
-            write_json(error_path, {"timestamp": now_ts(), "error": safe_error_message(exc)})
+            message = safe_error_message(exc)
+            append(
+                json.dumps(
+                    {
+                        "timestamp": now_ts(),
+                        "event": "error",
+                        "persona_id": persona_id,
+                        "error": message,
+                    },
+                    ensure_ascii=False,
+                )
+            )
+            write_json(error_path, {"timestamp": now_ts(), "error": message})
 
         time.sleep(interval)
 
