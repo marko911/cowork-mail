@@ -6,6 +6,7 @@ import os
 import shutil
 import subprocess
 import sys
+import tempfile
 import time
 from pathlib import Path
 
@@ -102,6 +103,27 @@ def log_event(path: Path, event: str, **fields: object) -> None:
     append_log(path, json.dumps(payload, ensure_ascii=False))
 
 
+def write_runtime_mcp_config(mail_server_url: str) -> Path:
+    payload = {
+        "mcpServers": {
+            "cowork-mail": {
+                "type": "http",
+                "url": f"{mail_server_url.rstrip('/')}/mcp",
+            }
+        }
+    }
+    with tempfile.NamedTemporaryFile(
+        mode="w",
+        encoding="utf-8",
+        prefix="cowork-mail-mcp-",
+        suffix=".json",
+        delete=False,
+    ) as f:
+        json.dump(payload, f, ensure_ascii=False, indent=2)
+        f.write("\n")
+        return Path(f.name)
+
+
 def run_claude(
     workspace_dir: Path,
     persona: dict[str, object],
@@ -123,6 +145,7 @@ def run_claude(
     env["COWORK_MAIL_SERVER_URL"] = mail_server_url
     env["COWORK_PERSONA_ID"] = str(persona["persona_id"])
     env["COWORK_DISPLAY_NAME"] = str(persona.get("display_name") or persona["persona_id"])
+    runtime_mcp_config = write_runtime_mcp_config(mail_server_url)
 
     cmd = [
         claude_bin,
@@ -131,6 +154,9 @@ def run_claude(
         model,
         "--permission-mode",
         permission_mode,
+        "--mcp-config",
+        str(runtime_mcp_config),
+        "--strict-mcp-config",
         "--setting-sources",
         "project,user,local",
         "--plugin-dir",
@@ -145,16 +171,23 @@ def run_claude(
         "claude_start",
         workspace_dir=str(workspace_dir),
         command=cmd[:-1],
+        runtime_mcp_config=str(runtime_mcp_config),
         persona_id=str(persona["persona_id"]),
     )
-    result = subprocess.run(
-        cmd,
-        cwd=str(workspace_dir),
-        env=env,
-        text=True,
-        capture_output=True,
-        check=False,
-    )
+    try:
+        result = subprocess.run(
+            cmd,
+            cwd=str(workspace_dir),
+            env=env,
+            text=True,
+            capture_output=True,
+            check=False,
+        )
+    finally:
+        try:
+            runtime_mcp_config.unlink(missing_ok=True)
+        except Exception:
+            pass
     if result.stdout.strip():
         print(result.stdout.rstrip())
         append_log(loop_log, "----- claude stdout begin -----")
