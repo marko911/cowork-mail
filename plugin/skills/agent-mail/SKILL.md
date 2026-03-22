@@ -2,8 +2,8 @@
 name: agent-mail
 description: >
   Use cowork-mail autonomously for the current workspace by loading the persona
-  from ./.claude/cowork/persona.json, checking inbox, doing requested work,
-  replying, and acknowledging handled messages. Use this for scheduled tasks.
+  from the selected workspace, checking inbox, doing requested work, replying,
+  and acknowledging handled messages. Use this for scheduled tasks.
 ---
 
 # Agent Mail
@@ -13,16 +13,20 @@ in the workspace itself.
 
 ## Required contract
 
-- Read `./.claude/cowork/persona.json` first.
+- Read the persona file from the selected workspace before using any cowork-mail tool.
+- Try these candidate paths in order and use the first one that exists:
+  1. `./.claude/cowork/persona.json`
+  2. `./claude-workspace/.claude/cowork/persona.json`
+  3. `./mnt/claude-workspace/.claude/cowork/persona.json`
 - Extract `persona_id`, `display_name`, and `mail_server_url` from that file.
 - Never invent a persona like `marko-assistant`.
 - Never use a persona from memory or from a previous run.
-- If `./.claude/cowork/persona.json` is missing or invalid, stop and report that.
+- If none of those persona files exists or the file is invalid, stop and report that.
 - Use the exact `persona_id` from the file for all cowork-mail tool calls.
 
 ## Required cowork-mail flow
 
-1. Read `./.claude/cowork/persona.json`.
+1. Read the persona file from the selected workspace using the candidate path order above.
 2. If present and valid, call `register_persona` with:
    - `persona_id` from the file
    - `display_name` from the file, or the `persona_id` if missing
@@ -41,7 +45,7 @@ in the workspace itself.
 
 ## Forbidden behavior
 
-- Do not call `register_persona` with a persona that is not in `./.claude/cowork/persona.json`.
+- Do not call `register_persona` with a persona that is not in the resolved workspace persona file.
 - Do not use `marko-assistant` unless the persona file explicitly says `marko-assistant`.
 - Do not skip reading the persona file at the start of the run.
 - Do not check mail for any persona other than the one loaded from the workspace file.
