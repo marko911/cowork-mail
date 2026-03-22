@@ -2,7 +2,7 @@
 name: mail-bootstrap
 description: >
   Initialize the cowork-mail messaging system for this session.
-  Starts the background mail watcher if persona config exists.
+  Loads the workspace persona configuration and primes cowork-mail hooks.
   Run this skill when starting a new session or when the user
   mentions cowork-mail, messaging, or checking mail.
 ---
@@ -36,6 +36,6 @@ fi
 
 ### 2. Interpret the output
 
-- If you see `[cowork-mail] Persona: ...` — bootstrap succeeded, the mail watcher is running.
+- If you see `[cowork-mail] Persona: ...` — bootstrap succeeded and cowork-mail is configured for this workspace.
 - If you see `[cowork-mail] SETUP_REQUIRED` — persona config is missing. Ask the user for persona_id, display_name, role, and team. Write the JSON file to the exact path shown in the output. Then re-run the bootstrap script to start the mail watcher.
 - If you see `[cowork-mail] Bootstrap error: ...` — report the error.

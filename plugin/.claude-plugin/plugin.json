@@ -1,7 +1,7 @@
 {
   "name": "cowork-mail",
   "description": "Cross-machine persona-aware mailbox for Claude Code cowork sessions. Agents send JSON messages to each other and poll for inbox updates via a shared MCP server.",
-  "version": "0.2.16",
+  "version": "0.2.17",
   "author": {
     "name": "Marko Bilal"
   },
