@@ -10,7 +10,7 @@ from common import (
     append_exports_to_claude_env,
     ensure_persona_fields,
     load_persona,
-    register_persona_api,
+    register_persona_if_needed,
     resolve_mail_server_url,
 )
 
@@ -68,7 +68,7 @@ def bootstrap_if_needed() -> bool:
         }
     )
 
-    register_persona_api(mail_server_url, persona_id, display_name)
+    register_persona_if_needed(mail_server_url, persona)
 
     team_str = ", ".join(team) if team else "none configured"
     print(f"[cowork-mail] Persona: {persona_id} ({display_name})")

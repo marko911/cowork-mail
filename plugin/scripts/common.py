@@ -97,6 +97,19 @@ def resolve_mail_server_url(data: dict[str, Any]) -> str:
     return str(value).rstrip("/")
 
 
+def persona_needs_registration(data: dict[str, Any]) -> bool:
+    return not bool(data.get("remote_registered"))
+
+
+def persist_persona(data: dict[str, Any]) -> None:
+    path_raw = data.get("_persona_path")
+    if not path_raw:
+        return
+    path = Path(str(path_raw))
+    payload = {k: v for k, v in data.items() if not str(k).startswith("_")}
+    path.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+
+
 def safe_key(persona_id: str) -> str:
     return "".join(c if c.isalnum() or c in ("-", "_", ".") else "_" for c in persona_id)
 
@@ -163,7 +176,7 @@ def unread_count(server: str, persona_id: str) -> dict[str, Any]:
 
 def register_persona_api(
     server: str, persona_id: str, display_name: str
-) -> None:
+) -> bool:
     server = server.rstrip("/")
     url = f"{server}/api/register"
     headers = {
@@ -173,8 +186,24 @@ def register_persona_api(
     payload = {"persona_id": persona_id, "display_name": display_name or persona_id}
     try:
         http_post_json(url, headers, payload)
+        return True
     except Exception:
-        pass
+        return False
+
+
+def register_persona_if_needed(server: str, data: dict[str, Any]) -> bool:
+    if not persona_needs_registration(data):
+        return False
+    persona_id = str(data.get("persona_id") or "")
+    display_name = str(data.get("display_name") or persona_id)
+    if not persona_id:
+        return False
+    if register_persona_api(server, persona_id, display_name):
+        data["remote_registered"] = True
+        data["remote_registered_at"] = now_ts()
+        persist_persona(data)
+        return True
+    return False
 
 
 def append_exports_to_claude_env(exports: dict[str, str]) -> None:

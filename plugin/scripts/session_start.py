@@ -8,7 +8,7 @@ from common import (
     append_exports_to_claude_env,
     ensure_persona_fields,
     load_persona,
-    register_persona_api,
+    register_persona_if_needed,
     resolve_mail_server_url,
     workspace_mount,
 )
@@ -36,11 +36,12 @@ def main() -> int:
             }
         )
 
-        register_persona_api(mail_server_url, persona_id, display_name)
+        registered_now = register_persona_if_needed(mail_server_url, persona)
 
         team_str = ", ".join(team) if team else "none configured"
         print(f"[cowork-mail] Persona: {persona_id} ({display_name})")
         print(f"[cowork-mail] Role: {role or 'unset'} | Team: {team_str}")
+        print(f"[cowork-mail] Remote registration: {'performed' if registered_now else 'skipped'}")
         print(f"[cowork-mail] Mail mode: hook-driven bounded pass (timeout 120s)")
         for inst in instructions:
             print(f"[cowork-mail] {inst}")

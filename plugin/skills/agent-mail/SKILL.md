@@ -27,15 +27,16 @@ in the workspace itself.
 ## Required cowork-mail flow
 
 1. Read the persona file from the selected workspace using the candidate path order above.
-2. If present and valid, call `register_persona` with:
+2. If the persona file contains `"remote_registered": true`, do not call `register_persona`.
+3. Only if the persona file explicitly shows it has not been remotely registered yet, call `register_persona` once with:
    - `persona_id` from the file
    - `display_name` from the file, or the `persona_id` if missing
-3. Call `get_unread_count` with that same `persona_id`.
-4. If unread count is zero:
+4. Call `get_unread_count` with that same `persona_id`.
+5. If unread count is zero:
    - say the inbox is clear for that exact `persona_id`
    - do not invent a different persona
    - exit quickly
-5. If unread count is greater than zero:
+6. If unread count is greater than zero:
    - call `fetch_inbox` with that exact `persona_id`
    - inspect the unread messages
    - do the requested work in the current workspace when appropriate
@@ -46,6 +47,7 @@ in the workspace itself.
 ## Forbidden behavior
 
 - Do not call `register_persona` with a persona that is not in the resolved workspace persona file.
+- Do not re-register a persona when the resolved workspace persona file already shows `"remote_registered": true`.
 - Do not use `marko-assistant` unless the persona file explicitly says `marko-assistant`.
 - Do not skip reading the persona file at the start of the run.
 - Do not check mail for any persona other than the one loaded from the workspace file.

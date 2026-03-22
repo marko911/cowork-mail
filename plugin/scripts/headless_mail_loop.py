@@ -20,7 +20,7 @@ from common import (
     load_persona,
     now_ts,
     plugin_root,
-    register_persona_api,
+    register_persona_if_needed,
     resolve_mail_server_url,
     write_json,
     safe_error_message,
@@ -377,7 +377,7 @@ def main() -> int:
         mail_server_url = resolve_mail_server_url(persona)
         persona_id = str(persona["persona_id"])
         display_name = str(persona.get("display_name") or persona_id)
-        register_persona_api(mail_server_url, persona_id, display_name)
+        register_persona_if_needed(mail_server_url, persona)
     except Exception as exc:
         print(f"[cowork-mail] Headless loop bootstrap error: {safe_error_message(exc)}")
         return 1
